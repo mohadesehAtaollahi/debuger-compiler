@@ -1,0 +1,1482 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🔧 Debug Language Compiler - LR(0) Parser</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        :root {
+            --bg-dark: #0d1117;
+            --bg-medium: #161b22;
+            --bg-light: #21262d;
+            --bg-hover: #30363d;
+            --text-primary: #e6edf3;
+            --text-secondary: #7d8590;
+            --accent-blue: #58a6ff;
+            --accent-green: #3fb950;
+            --accent-orange: #d29922;
+            --accent-yellow: #f0e68c;
+            --accent-red: #f85149;
+            --accent-purple: #bc8cff;
+            --accent-cyan: #39c5cf;
+            --border-color: #30363d;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', Helvetica, Arial, sans-serif;
+            background: var(--bg-dark);
+            color: var(--text-primary);
+            min-height: 100vh;
+            overflow: hidden;
+        }
+        
+        /* Header */
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 15px 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+        }
+        
+        .header h1 { font-size: 22px; font-weight: 600; }
+        .header-actions { display: flex; gap: 10px; }
+        
+        /* Main Layout */
+        .container {
+            display: flex;
+            height: calc(100vh - 60px);
+        }
+        
+        /* Left Panel */
+        .left-panel {
+            width: 380px;
+            min-width: 320px;
+            background: var(--bg-medium);
+            border-right: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        
+        /* Right Panel */
+        .right-panel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        
+        /* Sections */
+        .section {
+            padding: 12px 15px;
+            border-bottom: 1px solid var(--border-color);
+        }
+        
+        .section-title {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        
+        /* Code Editor */
+        .code-editor {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
+        }
+        
+        .code-editor textarea {
+            flex: 1;
+            width: 100%;
+            background: var(--bg-dark);
+            color: var(--text-primary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 12px;
+            font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+            font-size: 13px;
+            line-height: 1.6;
+            resize: none;
+        }
+        
+        .code-editor textarea:focus {
+            outline: none;
+            border-color: var(--accent-blue);
+            box-shadow: 0 0 0 3px rgba(88, 166, 255, 0.3);
+        }
+        
+        /* Buttons */
+        .btn-group { display: flex; gap: 8px; flex-wrap: wrap; }
+        
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #238636 0%, #2ea043 100%);
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background: linear-gradient(135deg, #2ea043 0%, #3fb950 100%);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(46, 160, 67, 0.4);
+        }
+        
+        .btn-secondary {
+            background: var(--bg-light);
+            color: var(--text-primary);
+            border: 1px solid var(--border-color);
+        }
+        
+        .btn-secondary:hover {
+            background: var(--bg-hover);
+            border-color: var(--text-secondary);
+        }
+        
+        .btn-accent {
+            background: linear-gradient(135deg, #1f6feb 0%, #388bfd 100%);
+            color: white;
+        }
+        
+        /* Tabs */
+        .tabs {
+            display: flex;
+            background: var(--bg-medium);
+            border-bottom: 1px solid var(--border-color);
+            padding: 0 10px;
+        }
+        
+        .tab {
+            padding: 12px 20px;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            transition: all 0.2s;
+            font-size: 13px;
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+        
+        .tab:hover { color: var(--text-primary); background: var(--bg-light); }
+        .tab.active { color: var(--accent-blue); border-bottom-color: var(--accent-blue); }
+        
+        .tab-content {
+            display: none;
+            flex: 1;
+            overflow: auto;
+            padding: 15px;
+        }
+        
+        .tab-content.active { display: flex; flex-direction: column; }
+        
+        /* Tables */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12px;
+            font-family: 'JetBrains Mono', monospace;
+        }
+        
+        th, td {
+            padding: 8px 10px;
+            border: 1px solid var(--border-color);
+            text-align: center;
+        }
+        
+        th {
+            background: var(--bg-light);
+            color: var(--accent-blue);
+            font-weight: 600;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+        
+        td { background: var(--bg-dark); }
+        td.shift { color: var(--accent-green); background: rgba(63, 185, 80, 0.1); }
+        td.reduce { color: var(--accent-orange); background: rgba(210, 153, 34, 0.1); }
+        td.accept { color: #ffd700; background: rgba(255, 215, 0, 0.15); font-weight: bold; }
+        td.goto { color: var(--accent-cyan); background: rgba(57, 197, 207, 0.1); }
+        td.empty { color: var(--bg-hover); }
+        
+        /* Tokens */
+        .tokens-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            max-height: 100px;
+            overflow: auto;
+            padding: 8px;
+            background: var(--bg-dark);
+            border-radius: 6px;
+        }
+        
+        .token {
+        padding: 6px 10px;
+        border-radius: 6px;
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 11px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 2px;
+        min-width: 50px;
+        }
+
+        .token-value {
+        font-weight: 600;
+        }
+
+        .token-type {
+        font-size: 9px;
+        opacity: 0.7;
+        text-transform: uppercase;
+        }
+        
+        .token.keyword { background: rgba(88, 166, 255, 0.2); color: var(--accent-blue); }
+        .token.number { background: rgba(63, 185, 80, 0.2); color: var(--accent-green); }
+        .token.identifier { background: rgba(188, 140, 255, 0.2); color: var(--accent-purple); }
+        .token.operator { background: rgba(210, 153, 34, 0.2); color: var(--accent-orange); }
+        .token.delimiter { background: rgba(125, 133, 144, 0.2); color: var(--text-secondary); }
+        
+        /* ============================================
+                    PARSE TREE STYLES
+           ============================================ */
+        
+        .tree-container {
+            display: flex;
+            gap: 15px;
+            height: 100%;
+            min-height: 0;
+        }
+        
+        .tree-visual-wrapper {
+            flex: 2;
+            background: var(--bg-dark);
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .tree-toolbar {
+            display: flex;
+            gap: 8px;
+            padding: 10px;
+            background: var(--bg-medium);
+            border-bottom: 1px solid var(--border-color);
+            flex-wrap: wrap;
+        }
+        
+        .tree-toolbar button {
+            padding: 6px 12px;
+            background: var(--bg-light);
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            color: var(--text-primary);
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.2s;
+        }
+        
+        .tree-toolbar button:hover { background: var(--bg-hover); }
+        
+        .tree-visual {
+            flex: 1;
+            overflow: auto;
+            padding: 20px;
+            min-height: 0;
+            display: flex;
+            align-items: flex-start;
+            justify-content: center;
+        }
+        
+        .tree-svg-container {
+            transform-origin: top center;
+            transition: transform 0.2s;
+        }
+        
+        /* Tree Text View */
+        .tree-text-wrapper {
+            flex: 1;
+            min-width: 280px;
+            background: var(--bg-dark);
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .tree-text-header {
+            padding: 10px 15px;
+            background: var(--bg-medium);
+            border-bottom: 1px solid var(--border-color);
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-secondary);
+        }
+        
+        .tree-text {
+            flex: 1;
+            padding: 15px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 12px;
+            overflow: auto;
+            white-space: pre;
+            line-height: 1.8;
+        }
+        
+        .tree-text .nt { color: var(--accent-blue); }
+        .tree-text .t { color: var(--accent-green); }
+        .tree-text .kw { color: var(--accent-purple); }
+        .tree-text .line { color: var(--border-color); }
+        .tree-text .val { color: var(--accent-orange); }
+        
+        /* Console */
+        .console {
+            background: #0a0a0a;
+            border-radius: 6px;
+            padding: 10px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 11px;
+            max-height: 100px;
+            overflow: auto;
+        }
+        
+        .console-line { margin: 2px 0; }
+        .console-line.error { color: var(--accent-red); }
+        .console-line.success { color: var(--accent-green); }
+        .console-line.info { color: var(--accent-cyan); }
+        .console-line .time { color: var(--text-secondary); }
+        
+        /* Grammar */
+        .grammar-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            height: 100%;
+        }
+        
+        .grammar-card {
+            background: var(--bg-dark);
+            border-radius: 10px;
+            border: 1px solid var(--border-color);
+            overflow: hidden;
+        }
+        
+        .grammar-card-header {
+            padding: 12px 15px;
+            background: var(--bg-medium);
+            border-bottom: 1px solid var(--border-color);
+            font-weight: 600;
+            font-size: 13px;
+            color: var(--accent-blue);
+        }
+        
+        .grammar-card-body {
+            padding: 15px;
+            overflow: auto;
+            max-height: 400px;
+        }
+        
+        .production {
+            padding: 8px 0;
+            border-bottom: 1px solid var(--border-color);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 12px;
+        }
+        
+        .production:last-child { border-bottom: none; }
+        .production-num { color: var(--text-secondary); margin-right: 10px; }
+        .production-left { color: var(--accent-blue); font-weight: 600; }
+        .production-arrow { color: var(--text-secondary); margin: 0 8px; }
+        .production-right .t { color: var(--accent-green); }
+        .production-right .nt { color: var(--accent-purple); }
+        
+        .set-item {
+            padding: 6px 0;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 11px;
+        }
+        
+        .set-name { color: var(--accent-purple); }
+        .set-values { color: var(--accent-green); }
+        
+        /* States */
+        .states-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: 12px;
+        }
+        
+        .state-card {
+            background: var(--bg-dark);
+            border-radius: 10px;
+            border: 1px solid var(--border-color);
+            overflow: hidden;
+        }
+        
+        .state-card-header {
+            padding: 10px 15px;
+            background: linear-gradient(135deg, var(--bg-light) 0%, var(--bg-medium) 100%);
+            border-bottom: 1px solid var(--border-color);
+            font-weight: 600;
+            color: var(--accent-blue);
+        }
+        
+        .state-card-body { padding: 12px 15px; }
+        
+        .state-item {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 11px;
+            padding: 4px 0;
+            color: var(--text-primary);
+        }
+        
+        .state-item .dot { color: var(--accent-red); font-weight: bold; }
+        
+        .state-transitions {
+            margin-top: 10px;
+            padding-top: 10px;
+            border-top: 1px solid var(--border-color);
+            font-size: 11px;
+        }
+        
+        .transition { color: var(--accent-green); }
+        
+        /* Debugger */
+        .debugger-controls {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+            align-items: center;
+            padding: 10px;
+            background: var(--bg-medium);
+            border-radius: 10px;
+        }
+        
+        .step-indicator {
+            background: var(--bg-dark);
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-weight: 600;
+            font-family: 'JetBrains Mono', monospace;
+        }
+        
+        .debugger-view {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 12px;
+            margin-bottom: 15px;
+        }
+        
+        .debug-panel {
+            background: var(--bg-dark);
+            border-radius: 10px;
+            border: 1px solid var(--border-color);
+            overflow: hidden;
+        }
+        
+        .debug-panel-header {
+            padding: 10px;
+            background: var(--bg-medium);
+            border-bottom: 1px solid var(--border-color);
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--accent-blue);
+        }
+        
+        .debug-panel-body {
+            padding: 10px;
+            max-height: 180px;
+            overflow: auto;
+        }
+        
+        .stack-items {
+            display: flex;
+            flex-direction: column-reverse;
+            gap: 4px;
+        }
+        
+        .stack-item {
+            padding: 6px 10px;
+            background: var(--bg-light);
+            border-radius: 4px;
+            text-align: center;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 12px;
+        }
+        
+        .action-display {
+            padding: 15px;
+            text-align: center;
+            font-size: 14px;
+            font-weight: bold;
+            border-radius: 8px;
+            font-family: 'JetBrains Mono', monospace;
+        }
+        
+        .action-display.shift {
+            background: linear-gradient(135deg, rgba(63, 185, 80, 0.2) 0%, rgba(63, 185, 80, 0.1) 100%);
+            color: var(--accent-green);
+            border: 1px solid var(--accent-green);
+        }
+        
+        .action-display.reduce {
+            background: linear-gradient(135deg, rgba(210, 153, 34, 0.2) 0%, rgba(210, 153, 34, 0.1) 100%);
+            color: var(--accent-orange);
+            border: 1px solid var(--accent-orange);
+        }
+        
+        .action-display.accept {
+            background: linear-gradient(135deg, rgba(255, 215, 0, 0.2) 0%, rgba(255, 215, 0, 0.1) 100%);
+            color: #ffd700;
+            border: 1px solid #ffd700;
+        }
+        
+        .action-display.error {
+            background: linear-gradient(135deg, rgba(248, 81, 73, 0.2) 0%, rgba(248, 81, 73, 0.1) 100%);
+            color: var(--accent-red);
+            border: 1px solid var(--accent-red);
+        }
+        
+        .steps-container {
+            flex: 1;
+            overflow: auto;
+            background: var(--bg-dark);
+            border-radius: 10px;
+            border: 1px solid var(--border-color);
+        }
+        
+        .steps-container tr.current { background: rgba(88, 166, 255, 0.15) !important; }
+        
+        /* Scrollbar */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: var(--bg-dark); }
+        ::-webkit-scrollbar-thumb { background: var(--bg-hover); border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #484f58; }
+        
+        /* Empty State */
+        .empty-state {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            color: var(--text-secondary);
+            text-align: center;
+            gap: 15px;
+            padding: 40px;
+        }
+        
+        .empty-state-icon { font-size: 48px; opacity: 0.5; }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <h1>🔧 Debug Language Compiler</h1>
+        <div class="header-actions">
+            <button class="btn btn-secondary" onclick="loadSample()">📝 Sample</button>
+            <button class="btn btn-secondary" onclick="clearAll()">🗑️ Clear</button>
+        </div>
+    </header>
+    
+    <div class="container">
+        <!-- Left Panel -->
+        <div class="left-panel">
+            <div class="section code-editor">
+                <div class="section-title">📝 Source Code</div>
+                <textarea id="codeInput" placeholder="Enter debug commands...">INT 42
+BREAK main
+WATCH counter
+STEP
+PRINT x + 5 * 2
+PRINT (a + b) * c
+CONTINUE</textarea>
+            </div>
+            
+            <div class="section">
+                <div class="btn-group">
+                    <button class="btn btn-accent" onclick="tokenize()">🔤 Tokenize</button>
+                    <button class="btn btn-primary" onclick="parse()">▶️ Parse</button>
+                </div>
+            </div>
+            
+            <div class="section">
+                <div class="section-title">🔤 Tokens</div>
+                <div id="tokensList" class="tokens-list">
+                    <span style="color: var(--text-secondary); font-size: 12px;">Tokens will appear here</span>
+                </div>
+            </div>
+            
+            <div class="section">
+                <div class="section-title">📋 Console</div>
+                <div id="console" class="console">
+                    <div class="console-line info"><span class="time">[00:00:00]</span> Compiler ready</div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Right Panel -->
+        <div class="right-panel">
+            <div class="tabs">
+                <div class="tab active" data-tab="grammar">📖 Grammar</div>
+                <div class="tab" data-tab="lrtable">📊 LR Table</div>
+                <div class="tab" data-tab="states">🔄 States</div>
+                <div class="tab" data-tab="tree">🌳 Parse Tree</div>
+                <div class="tab" data-tab="debugger">🐛 Debugger</div>
+            </div>
+            
+            <!-- Grammar Tab -->
+            <div id="tab-grammar" class="tab-content active">
+                <div class="grammar-grid">
+                    <div class="grammar-card">
+                        <div class="grammar-card-header">📜 Production Rules</div>
+                        <div class="grammar-card-body" id="productions"></div>
+                    </div>
+                    <div style="display: flex; flex-direction: column; gap: 15px;">
+                        <div class="grammar-card" style="flex: 1;">
+                            <div class="grammar-card-header">🔵 FIRST Sets</div>
+                            <div class="grammar-card-body" id="firstSets"></div>
+                        </div>
+                        <div class="grammar-card" style="flex: 1;">
+                            <div class="grammar-card-header">🟢 FOLLOW Sets</div>
+                            <div class="grammar-card-body" id="followSets"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- LR Table Tab -->
+            <div id="tab-lrtable" class="tab-content">
+                <div style="margin-bottom: 15px;">
+                    <h3 style="margin-bottom: 10px; color: var(--accent-blue);">ACTION Table</h3>
+                    <div style="overflow: auto; max-height: 40vh;">
+                        <table id="actionTable"></table>
+                    </div>
+                </div>
+                <div>
+                    <h3 style="margin-bottom: 10px; color: var(--accent-cyan);">GOTO Table</h3>
+                    <div style="overflow: auto; max-height: 30vh;">
+                        <table id="gotoTable"></table>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- States Tab -->
+            <div id="tab-states" class="tab-content">
+                <div id="statesGrid" class="states-grid"></div>
+            </div>
+            
+            <!-- Parse Tree Tab -->
+            <div id="tab-tree" class="tab-content">
+                <div class="tree-container">
+                    <div class="tree-visual-wrapper">
+                        <div class="tree-toolbar">
+                            <button onclick="zoomIn()">🔍+ Zoom In</button>
+                            <button onclick="zoomOut()">🔍- Zoom Out</button>
+                            <button onclick="resetZoom()">↺ Reset</button>
+                            <button onclick="exportTreePNG()">📷 Export PNG</button>
+                            <button onclick="exportTreeSVG()">💾 Export SVG</button>
+                        </div>
+                        <div class="tree-visual" id="treeVisual">
+                            <div class="empty-state">
+                                <div class="empty-state-icon">🌳</div>
+                                <div>Parse Tree</div>
+                                <div style="font-size: 12px;">Click "Parse" to generate the tree</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="tree-text-wrapper">
+                        <div class="tree-text-header">📄 Text Representation</div>
+                        <div class="tree-text" id="treeText">Parse tree will appear here...</div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Debugger Tab -->
+            <div id="tab-debugger" class="tab-content">
+                <div class="debugger-controls">
+                    <button class="btn btn-primary" onclick="debugPlay()">▶️ Play</button>
+                    <button class="btn btn-secondary" onclick="debugPause()">⏸️ Pause</button>
+                    <button class="btn btn-secondary" onclick="debugStep()">⏭️ Step</button>
+                    <button class="btn btn-secondary" onclick="debugReset()">↺ Reset</button>
+                    <div style="margin-left: auto; display: flex; align-items: center; gap: 10px;">
+                        <span style="font-size: 12px; color: var(--text-secondary);">Speed:</span>
+                        <input type="range" id="speedSlider" min="100" max="2000" value="500" style="width: 120px;">
+                        <div class="step-indicator" id="stepIndicator">Step: 0/0</div>
+                    </div>
+                </div>
+                
+                <div class="debugger-view">
+                    <div class="debug-panel">
+                        <div class="debug-panel-header">📚 State Stack</div>
+                        <div class="debug-panel-body">
+                            <div id="stateStack" class="stack-items"></div>
+                        </div>
+                    </div>
+                    <div class="debug-panel">
+                        <div class="debug-panel-header">🔤 Symbol Stack</div>
+                        <div class="debug-panel-body">
+                            <div id="symbolStack" class="stack-items"></div>
+                        </div>
+                    </div>
+                    <div class="debug-panel">
+                        <div class="debug-panel-header">📥 Input</div>
+                        <div class="debug-panel-body">
+                            <div id="remainingInput" class="stack-items" style="flex-direction: row; flex-wrap: wrap; gap: 5px;"></div>
+                        </div>
+                    </div>
+                    <div class="debug-panel">
+                        <div class="debug-panel-header">⚡ Action</div>
+                        <div class="debug-panel-body">
+                            <div id="actionDisplay" class="action-display">Ready</div>
+                            <div id="productionDisplay" style="text-align: center; margin-top: 8px; font-size: 11px; color: var(--accent-orange); font-family: monospace;"></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="steps-container">
+                    <table id="stepsTable" style="width: 100%;">
+                        <thead>
+                            <tr>
+                                <th>Step</th>
+                                <th>State Stack</th>
+                                <th>Symbol Stack</th>
+                                <th>Input</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ============================================================
+        //                      GLOBAL STATE
+        // ============================================================
+        
+        let grammarData = null;
+        let tablesData = null;
+        let statesData = null;
+        let parseResult = null;
+        let debugSteps = [];
+        let currentStep = 0;
+        let debugTimer = null;
+        let treeZoom = 1;
+        let currentTreeData = null;
+        
+        const KEYWORDS = ['INT', 'BREAK', 'WATCH', 'STEP', 'CONTINUE', 'PRINT'];
+        
+        // Tree drawing constants
+        const NODE_WIDTH = 110;
+        const NODE_HEIGHT = 50;
+        const LEVEL_GAP = 80;
+        const SIBLING_GAP = 25;
+        const PADDING = 80;
+        
+        // ============================================================
+        //                      INITIALIZATION
+        // ============================================================
+        
+        document.addEventListener('DOMContentLoaded', () => {
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.addEventListener('click', () => {
+                    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                    tab.classList.add('active');
+                    document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
+                });
+            });
+            
+            loadGrammar();
+            loadTables();
+            loadStates();
+        });
+        
+        // ============================================================
+        //                      API CALLS
+        // ============================================================
+        
+        async function loadGrammar() {
+            try {
+                const res = await fetch('/api/grammar');
+                grammarData = await res.json();
+                displayGrammar();
+                log('Grammar loaded', 'success');
+            } catch (e) {
+                log('Failed to load grammar', 'error');
+            }
+        }
+        
+        async function loadTables() {
+            try {
+                const res = await fetch('/api/tables');
+                tablesData = await res.json();
+                displayTables();
+                log('LR tables loaded', 'success');
+            } catch (e) {
+                log('Failed to load tables', 'error');
+            }
+        }
+        
+        async function loadStates() {
+            try {
+                const res = await fetch('/api/states');
+                statesData = await res.json();
+                displayStates();
+                log('States loaded: ' + statesData.length + ' states', 'success');
+            } catch (e) {
+                log('Failed to load states', 'error');
+            }
+        }
+        
+        async function tokenize() {
+            const code = document.getElementById('codeInput').value;
+            try {
+                const res = await fetch('/api/tokenize', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ code })
+                });
+                const data = await res.json();
+                displayTokens(data.tokens);
+                if (data.errors.length > 0) {
+                    data.errors.forEach(e => log(e, 'error'));
+                } else {
+                    log('Tokenization: ' + data.tokens.length + ' tokens', 'success');
+                }
+            } catch (e) {
+                log('Tokenization failed', 'error');
+            }
+        }
+        
+        async function parse() {
+            const code = document.getElementById('codeInput').value;
+            try {
+                const res = await fetch('/api/parse', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ code })
+                });
+                parseResult = await res.json();
+                displayTokens(parseResult.tokens);
+                
+                if (parseResult.success) {
+                    log('✅ Parsing successful!', 'success');
+                    displayTree(parseResult.tree);
+                    document.querySelector('[data-tab="tree"]').click();
+                } else {
+                    log('❌ ' + parseResult.error, 'error');
+                }
+                
+                debugSteps = parseResult.steps;
+                currentStep = 0;
+                displayStepsTable();
+                updateDebuggerView();
+            } catch (e) {
+                log('Parsing failed: ' + e.message, 'error');
+            }
+        }
+        
+        // ============================================================
+        //                      DISPLAY FUNCTIONS
+        // ============================================================
+        
+        function displayGrammar() {
+            if (!grammarData) return;
+            
+            let html = '';
+            grammarData.productions.forEach((prod, i) => {
+                const parts = prod.split('→');
+                const left = parts[0].trim();
+                const right = parts[1].trim().split(' ');
+                
+                html += `<div class="production">
+                    <span class="production-num">${i}.</span>
+                    <span class="production-left">${left}</span>
+                    <span class="production-arrow">→</span>
+                    <span class="production-right">`;
+                
+                right.forEach(sym => {
+                    const isTerminal = grammarData.terminals.includes(sym);
+                    html += `<span class="${isTerminal ? 't' : 'nt'}">${sym}</span> `;
+                });
+                html += `</span></div>`;
+            });
+            document.getElementById('productions').innerHTML = html;
+            
+            html = '';
+            Object.entries(grammarData.first).forEach(([sym, set]) => {
+                html += `<div class="set-item"><span class="set-name">FIRST(${sym})</span> = <span class="set-values">{ ${set.join(', ')} }</span></div>`;
+            });
+            document.getElementById('firstSets').innerHTML = html;
+            
+            html = '';
+            Object.entries(grammarData.follow).forEach(([sym, set]) => {
+                html += `<div class="set-item"><span class="set-name">FOLLOW(${sym})</span> = <span class="set-values">{ ${set.join(', ')} }</span></div>`;
+            });
+            document.getElementById('followSets').innerHTML = html;
+        }
+        
+        function displayTables() {
+            if (!tablesData) return;
+            
+            let html = '<thead><tr><th>State</th>';
+            tablesData.terminals.forEach(t => html += `<th>${t}</th>`);
+            html += '</tr></thead><tbody>';
+            
+            tablesData.action.forEach((row, i) => {
+                html += `<tr><th>${i}</th>`;
+                tablesData.terminals.forEach(t => {
+                    const cell = row[t] || '';
+                    let cls = 'empty';
+                    if (cell.startsWith('s')) cls = 'shift';
+                    else if (cell.startsWith('r')) cls = 'reduce';
+                    else if (cell === 'acc') cls = 'accept';
+                    html += `<td class="${cls}">${cell}</td>`;
+                });
+                html += '</tr>';
+            });
+            html += '</tbody>';
+            document.getElementById('actionTable').innerHTML = html;
+            
+            html = '<thead><tr><th>State</th>';
+            tablesData.non_terminals.forEach(nt => html += `<th>${nt}</th>`);
+            html += '</tr></thead><tbody>';
+            
+            tablesData.goto.forEach((row, i) => {
+                html += `<tr><th>${i}</th>`;
+                tablesData.non_terminals.forEach(nt => {
+                    const cell = row[nt] || '';
+                    html += `<td class="${cell ? 'goto' : 'empty'}">${cell}</td>`;
+                });
+                html += '</tr>';
+            });
+            html += '</tbody>';
+            document.getElementById('gotoTable').innerHTML = html;
+        }
+        
+        function displayStates() {
+            if (!statesData) return;
+            
+            let html = '';
+            statesData.forEach(state => {
+                html += `<div class="state-card">
+                    <div class="state-card-header">State ${state.id}</div>
+                    <div class="state-card-body">`;
+                
+                state.items.forEach(item => {
+                    const formatted = item.replace('•', '<span class="dot">•</span>');
+                    html += `<div class="state-item">${formatted}</div>`;
+                });
+                
+                if (Object.keys(state.transitions).length > 0) {
+                    html += '<div class="state-transitions">';
+                    Object.entries(state.transitions).forEach(([sym, target]) => {
+                        html += `<span class="transition">${sym} → ${target}</span> `;
+                    });
+                    html += '</div>';
+                }
+                html += '</div></div>';
+            });
+            document.getElementById('statesGrid').innerHTML = html;
+        }
+        
+        function displayTokens(tokens) {
+    if (!tokens || tokens.length === 0) {
+        document.getElementById('tokensList').innerHTML = '<span style="color: var(--text-secondary)">No tokens</span>';
+        return;
+    }
+    
+    let html = '';
+    tokens.forEach(token => {
+        if (token.type === '$') return;
+        let cls = 'delimiter';
+        if (KEYWORDS.includes(token.type)) cls = 'keyword';
+        else if (token.type === 'NUMBER') cls = 'number';
+        else if (token.type === 'IDENTIFIER') cls = 'identifier';
+        else if (['PLUS', 'MINUS', 'MULTIPLY', 'DIVIDE'].includes(token.type)) cls = 'operator';
+        
+        html += `<div class="token ${cls}">
+            <span class="token-value">${token.value}</span>
+            <span class="token-type">${token.type}</span>
+        </div>`;
+    });
+    document.getElementById('tokensList').innerHTML = html;
+}
+        
+        // ============================================================
+        //                    BEAUTIFUL PARSE TREE
+        // ============================================================
+        
+        function calculateTreeLayout(tree) {
+            const positions = new Map();
+            let nodeId = 0;
+            
+            // Assign IDs and calculate subtree widths
+            function assignIds(node) {
+                node._id = nodeId++;
+                node._width = NODE_WIDTH;
+                
+                if (node.children && node.children.length > 0) {
+                    let totalChildWidth = 0;
+                    node.children.forEach(child => {
+                        assignIds(child);
+                        totalChildWidth += child._width;
+                    });
+                    totalChildWidth += (node.children.length - 1) * SIBLING_GAP;
+                    node._width = Math.max(NODE_WIDTH, totalChildWidth);
+                }
+            }
+            
+            // Calculate positions
+            function calcPositions(node, x, y) {
+                if (node.children && node.children.length > 0) {
+                    let startX = x - node._width / 2;
+                    
+                    node.children.forEach(child => {
+                        const childX = startX + child._width / 2;
+                        calcPositions(child, childX, y + LEVEL_GAP);
+                        startX += child._width + SIBLING_GAP;
+                    });
+                    
+                    // Center parent above children
+                    const firstChildPos = positions.get(node.children[0]._id);
+                    const lastChildPos = positions.get(node.children[node.children.length - 1]._id);
+                    positions.set(node._id, {
+                        x: (firstChildPos.x + lastChildPos.x) / 2,
+                        y: y,
+                        node: node
+                    });
+                } else {
+                    positions.set(node._id, { x: x, y: y, node: node });
+                }
+            }
+            
+            assignIds(tree);
+            calcPositions(tree, PADDING + tree._width / 2, PADDING);
+            
+            // Calculate bounds
+            let minX = Infinity, maxX = -Infinity, maxY = -Infinity;
+            positions.forEach(pos => {
+                minX = Math.min(minX, pos.x - NODE_WIDTH / 2);
+                maxX = Math.max(maxX, pos.x + NODE_WIDTH / 2);
+                maxY = Math.max(maxY, pos.y + NODE_HEIGHT);
+            });
+            
+            // Shift all positions to ensure positive coordinates
+            const shiftX = -minX + PADDING;
+            positions.forEach(pos => pos.x += shiftX);
+            
+            return {
+                positions,
+                width: maxX - minX + PADDING * 2,
+                height: maxY + PADDING
+            };
+        }
+        
+        function generateTreeSVG(tree, forExport = false) {
+            const layout = calculateTreeLayout(tree);
+            currentTreeData = { tree, layout };
+            
+            const width = layout.width;
+            const height = layout.height;
+            
+            // Colors for export (light background) vs display (dark background)
+            const colors = forExport ? {
+                bg: '#ffffff',
+                nonterminal: { fill: '#e3f2fd', stroke: '#1976d2', text: '#1565c0' },
+                terminal: { fill: '#e8f5e9', stroke: '#388e3c', text: '#2e7d32' },
+                keyword: { fill: '#f3e5f5', stroke: '#7b1fa2', text: '#6a1b9a' },
+                edge: '#90a4ae',
+                shadow: 'rgba(0,0,0,0.1)'
+            } : {
+                bg: 'transparent',
+                nonterminal: { fill: '#1e3a5f', stroke: '#58a6ff', text: '#ffffff' },
+                terminal: { fill: '#1a4d2e', stroke: '#3fb950', text: '#ffffff' },
+                keyword: { fill: '#4a1d6e', stroke: '#bc8cff', text: '#ffffff' },
+                edge: '#30363d',
+                shadow: 'rgba(0,0,0,0.3)'
+            };
+            
+            let svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" style="font-family: 'Segoe UI', Arial, sans-serif;">`;
+            
+            // Background for export
+            if (forExport) {
+                svg += `<rect width="100%" height="100%" fill="${colors.bg}"/>`;
+            }
+            
+            // Defs for gradients and shadows
+            svg += `<defs>
+                <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+                    <feDropShadow dx="2" dy="3" stdDeviation="3" flood-color="${colors.shadow}"/>
+                </filter>
+            </defs>`;
+            
+            // Draw edges first
+            layout.positions.forEach((pos, id) => {
+                const node = pos.node;
+                if (node.children) {
+                    node.children.forEach(child => {
+                        const childPos = layout.positions.get(child._id);
+                        const startX = pos.x;
+                        const startY = pos.y + NODE_HEIGHT / 2;
+                        const endX = childPos.x;
+                        const endY = childPos.y - NODE_HEIGHT / 2;
+                        const midY = (startY + endY) / 2;
+                        
+                        svg += `<path d="M ${startX} ${startY} C ${startX} ${midY}, ${endX} ${midY}, ${endX} ${endY}" 
+                                fill="none" stroke="${colors.edge}" stroke-width="2.5" stroke-linecap="round"/>`;
+                    });
+                }
+            });
+            
+            // Draw nodes
+            layout.positions.forEach((pos, id) => {
+                const node = pos.node;
+                const isLeaf = !node.children || node.children.length === 0;
+                const isKeyword = KEYWORDS.includes(node.symbol);
+                
+                let nodeColors;
+                if (isLeaf) {
+                    nodeColors = isKeyword ? colors.keyword : colors.terminal;
+                } else {
+                    nodeColors = colors.nonterminal;
+                }
+                
+                const x = pos.x - NODE_WIDTH / 2 + 5;
+                const y = pos.y - NODE_HEIGHT / 2 + 5;
+                const w = NODE_WIDTH - 10;
+                const h = NODE_HEIGHT - 10;
+                
+                // Node rectangle with shadow
+                svg += `<rect x="${x}" y="${y}" width="${w}" height="${h}" 
+                        rx="10" ry="10" 
+                        fill="${nodeColors.fill}" 
+                        stroke="${nodeColors.stroke}" 
+                        stroke-width="2.5"
+                        filter="url(#shadow)"/>`;
+                
+                // Text
+                const hasValue = isLeaf && node.value && node.value !== node.symbol;
+                if (hasValue) {
+                    svg += `<text x="${pos.x}" y="${pos.y - 5}" 
+                            text-anchor="middle" dominant-baseline="middle"
+                            fill="${nodeColors.text}" font-size="12" font-weight="600">${escapeHtml(node.symbol)}</text>`;
+                    svg += `<text x="${pos.x}" y="${pos.y + 10}" 
+                            text-anchor="middle" dominant-baseline="middle"
+                            fill="${nodeColors.text}" font-size="10" opacity="0.8">"${escapeHtml(node.value)}"</text>`;
+                } else {
+                    svg += `<text x="${pos.x}" y="${pos.y + 2}" 
+                            text-anchor="middle" dominant-baseline="middle"
+                            fill="${nodeColors.text}" font-size="12" font-weight="600">${escapeHtml(node.symbol)}</text>`;
+                }
+            });
+            
+            svg += '</svg>';
+            return { svg, width, height };
+        }
+        
+        function displayTree(tree) {
+            if (!tree) {
+                document.getElementById('treeVisual').innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">🌳</div>
+                        <div>No Parse Tree</div>
+                    </div>`;
+                document.getElementById('treeText').textContent = 'No parse tree available';
+                return;
+            }
+            
+            treeZoom = 1;
+            const { svg, width, height } = generateTreeSVG(tree, false);
+            
+            document.getElementById('treeVisual').innerHTML = `
+                <div class="tree-svg-container" style="transform: scale(${treeZoom}); min-width: ${width}px; min-height: ${height}px;">
+                    ${svg}
+                </div>`;
+            
+            // Text representation
+            document.getElementById('treeText').innerHTML = buildTreeText(tree, '', true);
+        }
+        
+        function buildTreeText(node, prefix, isLast) {
+            if (!node) return '';
+            
+            const isLeaf = !node.children || node.children.length === 0;
+            const isKeyword = KEYWORDS.includes(node.symbol);
+            
+            let symbolClass = isLeaf ? (isKeyword ? 'kw' : 't') : 'nt';
+            
+            let line = `<span class="line">${prefix}${isLast ? '└── ' : '├── '}</span>`;
+            line += `<span class="${symbolClass}">${node.symbol}</span>`;
+            
+            if (isLeaf && node.value && node.value !== node.symbol) {
+                line += ` <span class="val">"${escapeHtml(node.value)}"</span>`;
+            }
+            line += '\n';
+            
+            if (node.children) {
+                const newPrefix = prefix + (isLast ? '    ' : '│   ');
+                node.children.forEach((child, i) => {
+                    line += buildTreeText(child, newPrefix, i === node.children.length - 1);
+                });
+            }
+            
+            return line;
+        }
+        
+        function escapeHtml(text) {
+            if (!text) return '';
+            return String(text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        }
+        
+        // Tree controls
+        function zoomIn() {
+            treeZoom = Math.min(treeZoom * 1.2, 3);
+            const container = document.querySelector('.tree-svg-container');
+            if (container) container.style.transform = `scale(${treeZoom})`;
+        }
+        
+        function zoomOut() {
+            treeZoom = Math.max(treeZoom / 1.2, 0.3);
+            const container = document.querySelector('.tree-svg-container');
+            if (container) container.style.transform = `scale(${treeZoom})`;
+        }
+        
+        function resetZoom() {
+            treeZoom = 1;
+            const container = document.querySelector('.tree-svg-container');
+            if (container) container.style.transform = `scale(1)`;
+        }
+        
+        function exportTreeSVG() {
+            if (!currentTreeData || !currentTreeData.tree) {
+                log('No tree to export', 'error');
+                return;
+            }
+            
+            const { svg } = generateTreeSVG(currentTreeData.tree, true);
+            const blob = new Blob([svg], { type: 'image/svg+xml' });
+            const url = URL.createObjectURL(blob);
+            
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'parse_tree.svg';
+            a.click();
+            
+            URL.revokeObjectURL(url);
+            log('Tree exported as SVG', 'success');
+        }
+        
+        function exportTreePNG() {
+            if (!currentTreeData || !currentTreeData.tree) {
+                log('No tree to export', 'error');
+                return;
+            }
+            
+            const { svg, width, height } = generateTreeSVG(currentTreeData.tree, true);
+            
+            // Create canvas
+            const canvas = document.createElement('canvas');
+            const scale = 2; // Higher resolution
+            canvas.width = width * scale;
+            canvas.height = height * scale;
+            const ctx = canvas.getContext('2d');
+            ctx.scale(scale, scale);
+            
+            // Create image from SVG
+            const img = new Image();
+            const svgBlob = new Blob([svg], { type: 'image/svg+xml;charset=utf-8' });
+            const url = URL.createObjectURL(svgBlob);
+            
+            img.onload = function() {
+                // White background
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(0, 0, width, height);
+                
+                // Draw SVG
+                ctx.drawImage(img, 0, 0);
+                
+                // Download
+                const pngUrl = canvas.toDataURL('image/png');
+                const a = document.createElement('a');
+                a.href = pngUrl;
+                a.download = 'parse_tree.png';
+                a.click();
+                
+                URL.revokeObjectURL(url);
+                log('Tree exported as PNG', 'success');
+            };
+            
+            img.onerror = function() {
+                log('Failed to export PNG', 'error');
+                URL.revokeObjectURL(url);
+            };
+            
+            img.src = url;
+        }
+        
+        // ============================================================
+        //                      DEBUGGER
+        // ============================================================
+        
+        function displayStepsTable() {
+            const tbody = document.querySelector('#stepsTable tbody');
+            let html = '';
+            debugSteps.forEach((step, i) => {
+                html += `<tr data-step="${i}" onclick="goToStep(${i})" style="cursor: pointer;">
+                    <td>${step.step}</td>
+                    <td>[${step.stack.join(', ')}]</td>
+                    <td>[${step.symbols.join(', ')}]</td>
+                    <td>${step.input.slice(0, 5).join(' ')}${step.input.length > 5 ? '...' : ''}</td>
+                    <td>${step.action}</td>
+                </tr>`;
+            });
+            tbody.innerHTML = html;
+        }
+        
+        function updateDebuggerView() {
+            if (debugSteps.length === 0) {
+                document.getElementById('stepIndicator').textContent = 'Step: 0/0';
+                return;
+            }
+            
+            const step = debugSteps[currentStep];
+            document.getElementById('stepIndicator').textContent = `Step: ${currentStep + 1}/${debugSteps.length}`;
+            
+            let html = '';
+            step.stack.slice().reverse().forEach(s => html += `<div class="stack-item">${s}</div>`);
+            document.getElementById('stateStack').innerHTML = html || '<div class="stack-item" style="opacity:0.3">∅</div>';
+            
+            html = '';
+            step.symbols.slice().reverse().forEach(s => html += `<div class="stack-item">${s}</div>`);
+            document.getElementById('symbolStack').innerHTML = html || '<div class="stack-item" style="opacity:0.3">∅</div>';
+            
+            html = '';
+            step.input.forEach(s => html += `<div class="stack-item">${s}</div>`);
+            document.getElementById('remainingInput').innerHTML = html || '<div class="stack-item" style="opacity:0.3">∅</div>';
+            
+            const actionDiv = document.getElementById('actionDisplay');
+            actionDiv.textContent = step.action;
+            actionDiv.className = 'action-display';
+            
+            if (step.action.includes('Shift')) actionDiv.classList.add('shift');
+            else if (step.action.includes('Reduce')) actionDiv.classList.add('reduce');
+            else if (step.action.includes('Accept')) actionDiv.classList.add('accept');
+            else if (step.action.includes('Error')) actionDiv.classList.add('error');
+            
+            document.getElementById('productionDisplay').textContent = step.production || '';
+            
+            document.querySelectorAll('#stepsTable tbody tr').forEach((row, i) => {
+                row.classList.toggle('current', i === currentStep);
+            });
+        }
+        
+        function goToStep(step) {
+            currentStep = step;
+            updateDebuggerView();
+        }
+        
+        function debugPlay() {
+            if (debugTimer) clearInterval(debugTimer);
+            const speed = document.getElementById('speedSlider').value;
+            debugTimer = setInterval(() => {
+                if (currentStep < debugSteps.length - 1) {
+                    currentStep++;
+                    updateDebuggerView();
+                } else {
+                    clearInterval(debugTimer);
+                    debugTimer = null;
+                }
+            }, speed);
+        }
+        
+        function debugPause() {
+            if (debugTimer) { clearInterval(debugTimer); debugTimer = null; }
+        }
+        
+        function debugStep() {
+            if (currentStep < debugSteps.length - 1) { currentStep++; updateDebuggerView(); }
+        }
+        
+        function debugReset() {
+            debugPause();
+            currentStep = 0;
+            updateDebuggerView();
+        }
+        
+        // ============================================================
+        //                      UTILITIES
+        // ============================================================
+        
+        function log(message, type = 'info') {
+            const consoleEl = document.getElementById('console');
+            const time = new Date().toLocaleTimeString();
+            const line = document.createElement('div');
+            line.className = 'console-line ' + type;
+            line.innerHTML = `<span class="time">[${time}]</span> ${message}`;
+            consoleEl.appendChild(line);
+            consoleEl.scrollTop = consoleEl.scrollHeight;
+        }
+        
+        function loadSample() {
+            document.getElementById('codeInput').value = `INT 100
+BREAK main
+WATCH x
+STEP
+PRINT a + b * c
+PRINT (x + y) * (z - w)
+CONTINUE`;
+            log('Sample loaded', 'info');
+        }
+        
+        function clearAll() {
+            document.getElementById('codeInput').value = '';
+            document.getElementById('tokensList').innerHTML = '<span style="color: var(--text-secondary)">Tokens will appear here</span>';
+            document.getElementById('treeVisual').innerHTML = `
+                <div class="empty-state">
+                    <div class="empty-state-icon">🌳</div>
+                    <div>Parse Tree</div>
+                </div>`;
+            document.getElementById('treeText').textContent = 'Parse tree will appear here...';
+            currentTreeData = null;
+            debugSteps = [];
+            currentStep = 0;
+            displayStepsTable();
+            updateDebuggerView();
+            log('Cleared', 'info');
+        }
+    </script>
+</body>
+</html>
